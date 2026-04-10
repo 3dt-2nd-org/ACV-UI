@@ -4,7 +4,7 @@
   "version": "1.0",
   "description": "유튜브 영상 신뢰도 판별 기술 데모 (ACV)",
   "permissions": ["storage", "tabs"],
-  "host_permissions": ["*://www.youtube.com/*"],
+  "host_permissions": ["*://www.youtube.com/*", "http://20.196.136.150:8000"],
   "content_scripts": [
     {
       "matches": ["*://www.youtube.com/*"],
