@@ -1,82 +1,57 @@
-/* --- ACV (애사비) 서버 실시간 연동 코드 --- */
-
 let forceStopListener = null;
-let currentObserver = null;
 let lastProcessedId = null;
-let currentEventSource = null;
 
 function initACV() {
     const params = new URLSearchParams(window.location.search);
     const videoId = params.get("v");
 
-    // 설계도 Step 1: 유튜브 영상 접속 감지
+    // 영상 시청 페이지가 아니거나 ID가 없으면 초기화
     if (!window.location.href.includes("watch") || !videoId) {
         removeExistingUI();
-        if (currentEventSource) currentEventSource.close();
+        lastProcessedId = null;
         return;
     }
 
+    // 이미 배지가 렌더링된 동일 영상이면 중단
     if (videoId === lastProcessedId && document.getElementById("acv-badge")) return;
 
     lastProcessedId = videoId;
     removeExistingUI();
-    if (currentEventSource) currentEventSource.close();
 
-    // 분석 대기 중 상태 표시
-    renderProcessingBadge();
-
-    // 설계도 Step 2: SSE GET /api/stream/{video_id} 요청 시작
-    connectToACVServer(videoId);
+    // 1. Background.js 로 API 연결 요청
+    chrome.runtime.sendMessage({ action: "START_ANALYSIS", videoId: videoId });
 }
 
-function connectToACVServer(videoId) {
-    const serverUrl = `http://20.196.136.150:8000/api/stream/${videoId}`;
-    currentEventSource = new EventSource(serverUrl);
-
-    // [설계도 Step 15/16] 분석 완료 이벤트 수신 (event: complete)
-    currentEventSource.addEventListener('complete', (event) => {
-        const data = JSON.parse(event.data);
-        console.log("✅ 분석 완료 데이터 수신:", data);
+// 2. Background.js 로부터 전달받은 분석 결과 처리
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.action === "SSE_DATA" && msg.payload) {
+        const payload = msg.payload;
         
-        document.getElementById("acv-badge")?.remove();
-        
-        // 백엔드 데이터(details)를 UI용 reasons 형식으로 변환
-        const processedData = {
-            ...data,
-            // 백엔드의 status(Trustworthy 등)를 UI 판별용 DANGER/SAFE로 매핑
-            status: data.score < 60 ? "DANGER" : "SAFE", 
-            reasons: data.details ? [{h: "AI 분석 요약", p: data.details}] : [{h: "분석 완료", p: "신뢰도 검증이 완료되었습니다."}]
-        };
+        // 서버에서 전달하는 event 타입 확인
+        if (payload.event === "complete") {
+            // main.py 로직상 payload.data 는 직렬화된 JSON 문자열이므로 한 번 더 파싱
+            const analysisData = JSON.parse(payload.data);
+            
+            // 기존 UI 규격에 맞게 데이터 매핑
+            const uiData = {
+                score: analysisData.score,
+                // 백엔드 status 값에 따른 UI 분기 처리
+                status: analysisData.score >= 50 ? "SAFE" : "DANGER", 
+                reasons: [
+                    { h: "분석 요약", p: analysisData.details || "세부 리포트 정보가 없습니다." }
+                ]
+            };
 
-        renderBadge(processedData);
-
-        // 설계도 Step 13-B: 위험 판정 시 Block(차단) 실행
-        if (processedData.status === "DANGER") {
-            applyDangerUI(processedData);
+            renderBadge(uiData);
+            if (uiData.status === "DANGER") applyDangerUI(uiData);
+        } else if (payload.event === "error") {
+            const errorData = JSON.parse(payload.data);
+            console.error("서버 파이프라인 에러:", errorData.error);
         }
-        
-        currentEventSource.close();
-    });
+    }
+});
 
-    // 서버 분석 중 신호 수신 (event: ping)
-    currentEventSource.addEventListener('ping', (event) => {
-        const badge = document.getElementById("acv-badge");
-        if (badge) badge.innerText = "🔍 분석 중...";
-    });
-
-    // 서버 에러 발생 수신 (event: error)
-    currentEventSource.addEventListener('error', (event) => {
-        console.error("❌ 서버 에러 발생:", event);
-        const badge = document.getElementById("acv-badge");
-        if (badge) {
-            badge.innerText = "⚠️ 분석 불가";
-            badge.style.background = "#FF9500";
-        }
-        currentEventSource.close();
-    });
-}
-
-// --- UI 렌더링 함수 (DANGER/SAFE 대응) ---
+// --- 이하 UI 렌더링 및 제어 로직 (기존 코드 유지) ---
 
 function applyDangerUI(data) {
     const playerContainer = document.querySelector("#movie_player");
@@ -93,7 +68,9 @@ function applyDangerUI(data) {
             e?.stopImmediatePropagation();
         }
     };
-    ['play', 'playing', 'timeupdate'].forEach(evt => video.addEventListener(evt, forceStopListener, true));
+
+    const events = ['play', 'playing', 'timeupdate'];
+    events.forEach(evt => video.addEventListener(evt, forceStopListener, true));
 
     const overlay = document.createElement("div");
     overlay.id = "acv-warning-overlay";
@@ -103,10 +80,10 @@ function applyDangerUI(data) {
             <p class="acv-score-text">신뢰도 점수: <span style="color:#F04452; font-weight:800;">${data.score}점</span></p>
             <div class="acv-btn-group">
                 <div class="acv-btn-row">
-                    <button class="acv-btn-primary" id="acv-go-home">홈으로 돌아가기</button>
+                    <button class="acv-btn-primary" id="acv-go-home">유튜브 홈으로</button>
                     <button class="acv-btn-secondary" id="acv-continue">계속 시청 (주의)</button>
                 </div>
-                <button class="acv-btn-report" id="acv-toggle-btn">분석 사유 확인하기</button>
+                <button class="acv-btn-report" id="acv-toggle-btn">신뢰도 점수 이유 확인하기</button>
                 <div id="acv-report-content" class="acv-report-area" style="display:none;">
                     ${data.reasons.map(r => `<div class="report-item"><h4>${r.h}</h4><p>${r.p}</p></div>`).join('')}
                 </div>
@@ -125,15 +102,18 @@ function applyDangerUI(data) {
 
 function toggleSafePanel(data) {
     let panel = document.getElementById("acv-safe-panel");
-    if (panel) { panel.style.display = panel.style.display === "none" ? "flex" : "none"; return; }
+    if (panel) {
+        panel.style.display = panel.style.display === "none" ? "flex" : "none";
+        return;
+    }
 
     panel = document.createElement("div");
     panel.id = "acv-safe-panel";
     panel.innerHTML = `
         <div class="acv-safe-title">🟢 이 영상은 안전합니다</div>
-        <p style="color:#6B7684; font-size:14px; margin-bottom:20px;">AI 분석 결과 <b>${data.score}점</b>을 획득했습니다.</p>
+        <p style="color:#6B7684; font-size:14px; margin-bottom:20px;">Azure Critical Validator 검증 결과<br>신뢰도 점수 <b>${data.score}점</b>을 획득했습니다.</p>
         <div class="acv-btn-group">
-            <button class="acv-btn-secondary" id="acv-safe-report-btn">분석 리포트 보기</button>
+            <button class="acv-btn-secondary" id="acv-safe-report-btn">신뢰도 점수 자세히 보기</button>
             <div id="acv-safe-report-content" class="acv-report-area" style="display:none;">
                 ${data.reasons.map(r => `<div class="report-item"><h4>${r.h}</h4><p>${r.p}</p></div>`).join('')}
             </div>
@@ -156,6 +136,7 @@ function renderBadge(data) {
     badge.id = "acv-badge";
     badge.className = data.status === "DANGER" ? "badge-danger" : "badge-safe";
     badge.innerText = `${data.status === "DANGER" ? "🔴 의심" : "🟢 신뢰"} | ${data.score}점`;
+    
     badge.onclick = () => {
         if (data.status === "DANGER") applyDangerUI(data);
         else toggleSafePanel(data);
@@ -163,17 +144,9 @@ function renderBadge(data) {
     document.body.appendChild(badge);
 }
 
-function renderProcessingBadge() {
-    const badge = document.createElement("div");
-    badge.id = "acv-badge";
-    badge.style.background = "#4E5968";
-    badge.style.color = "white";
-    badge.innerText = "🔍 분석 대기 중...";
-    document.body.appendChild(badge);
-}
-
 function cleanupBlocker(video) {
-    if (forceStopListener) ['play', 'playing', 'timeupdate'].forEach(evt => video.removeEventListener(evt, forceStopListener, true));
+    const events = ['play', 'playing', 'timeupdate'];
+    if (forceStopListener) events.forEach(evt => video.removeEventListener(evt, forceStopListener, true));
     video.playbackRate = 1; video.classList.remove("acv-blur"); video.muted = false;
     document.getElementById("acv-warning-overlay")?.remove();
 }
@@ -185,8 +158,11 @@ function removeExistingUI() {
     document.getElementById("acv-safe-panel")?.remove();
 }
 
+// 유튜브 페이지 전환 감지 (SPA 특성 대응)
 window.addEventListener('yt-navigate-finish', initACV);
 setInterval(() => {
     const currentVideoId = new URLSearchParams(window.location.search).get("v");
-    if (window.location.href.includes("watch") && (currentVideoId !== lastProcessedId || !document.getElementById("acv-badge"))) initACV();
+    if (window.location.href.includes("watch") && (currentVideoId !== lastProcessedId || !document.getElementById("acv-badge"))) {
+        initACV();
+    }
 }, 1000);
