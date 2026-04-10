@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>ACV 상세 분석 리포트</title>
+    <style>
+        body { font-family: 'Pretendard', sans-serif; background: #F2F4F6; display: flex; justify-content: center; padding: 50px; }
+        .container { background: white; width: 100%; max-width: 600px; padding: 40px; border-radius: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+        .header { margin-bottom: 30px; }
+        .score-badge { display: inline-block; padding: 8px 16px; background: #FFF0F0; color: #F04452; border-radius: 10px; font-weight: bold; margin-bottom: 10px; }
+        h1 { font-size: 28px; color: #191F28; margin: 0; }
+        .section { margin-top: 40px; }
+        .section-title { font-size: 18px; font-weight: bold; color: #4E5968; margin-bottom: 15px; }
+        .reason-card { background: #F9FAFB; padding: 20px; border-radius: 20px; margin-bottom: 12px; border-left: 5px solid #F04452; }
+        .reason-card h3 { margin: 0 0 5px 0; font-size: 16px; color: #333D4B; }
+        .reason-card p { margin: 0; font-size: 14px; color: #6B7684; line-height: 1.5; }
+        .btn-back { display: block; width: 100%; padding: 16px; background: #004DFE; color: white; border: none; border-radius: 15px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 40px; text-align: center; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="score-badge">위험도: 10점</div>
+            <h1>Azure AI 분석 리포트</h1>
+        </div>
+        
+        <div class="section">
+            <div class="section-title">주요 신뢰도 하락 요인</div>
+            <div class="reason-card">
+                <h3>⚠️ 과학적 근거 부족</h3>
+                <p>제시된 '육각수' 이론은 현대 주류 과학계에서 검증되지 않은 가설이며, 논문 인용이 전무합니다.</p>
+            </div>
+            <div class="reason-card">
+                <h3>🚩 확증 편향적 서술</h3>
+                <p>반대 의견이나 부작용에 대한 언급 없이 일방적인 효능만을 강조하고 있습니다.</p>
+            </div>
+            <div class="reason-card">
+                <h3>💰 상업적 목적 의심</h3>
+                <p>영상 하단에 특정 제품 구매를 유도하는 링크가 포함되어 있어 정보의 객관성이 낮습니다.</p>
+            </div>
+        </div>
+
+        <a href="#" class="btn-back" onclick="window.close()">창 닫기</a>
+    </div>
+</body>
+</html>

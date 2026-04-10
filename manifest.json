@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "ACV: Azure Critical Validator",
+  "version": "1.0",
+  "description": "유튜브 영상 신뢰도 판별 기술 데모 (ACV)",
+  "permissions": ["storage", "tabs"],
+  "host_permissions": ["*://www.youtube.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/*"],
+      "js": ["content.js"],
+      "css": ["style.css"]
+    }
+  ]
+}
